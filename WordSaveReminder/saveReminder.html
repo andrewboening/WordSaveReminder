@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Save Reminder</title>
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    
+    <style>
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            padding: 10px; 
+            margin: 0;
+        }
+        .reminder { 
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .button {
+            background-color: #217346;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.2s;
+        }
+        .button:hover {
+            background-color: #1a5c38;
+        }
+        .button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status-message {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+            min-height: 20px;
+        }
+        .error-message {
+            color: #d93025;
+        }
+        .success-message {
+            color: #188038;
+        }
+        .spinner {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #217346;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="reminder">
+        <p>You haven't saved your work in the last 10 minutes!</p>
+        <button class="button" id="saveButton" onclick="saveDocument()">Save Now</button>
+        <button class="button" onclick="closeDialog()">Dismiss</button>
+        <div id="statusMessage" class="status-message"></div>
+    </div>
+
+    <script>
+        let isSaving = false;
+
+        function updateStatus(message, type = 'normal') {
+            const statusElement = document.getElementById('statusMessage');
+            statusElement.textContent = message;
+            statusElement.className = 'status-message ' + (type === 'error' ? 'error-message' : 
+                                                         type === 'success' ? 'success-message' : '');
+        }
+
+        function showSpinner() {
+            const saveButton = document.getElementById('saveButton');
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<span class="spinner"></span>Saving...';
+        }
+
+        function resetSaveButton() {
+            const saveButton = document.getElementById('saveButton');
+            saveButton.disabled = false;
+            saveButton.textContent = 'Save Now';
+        }
+
+        function saveDocument() {
+            if (isSaving) return;
+            isSaving = true;
+            
+            showSpinner();
+            updateStatus('Saving document...');
+
+            Office.context.document.save(function(result) {
+                isSaving = false;
+                
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    updateStatus('Document saved successfully!', 'success');
+                    Office.context.ui.messageParent('saved');
+                    
+                    // Close dialog after showing success message
+                    setTimeout(closeDialog, 1500);
+                } else {
+                    resetSaveButton();
+                    updateStatus(
+                        'Failed to save document. Please try again or save manually.',
+                        'error'
+                    );
+                }
+            });
+        }
+
+        function closeDialog() {
+            if (!isSaving) {
+                Office.context.ui.messageParent('close');
+            }
+        }
+
+        // Prevent closing dialog while saving
+        window.onbeforeunload = function() {
+            if (isSaving) {
+                return "Save in progress. Are you sure you want to close?";
+            }
+        };
+
+        // Initialize Office
+        Office.onReady(function() {
+            // Enable buttons once Office is ready
+            document.getElementById('saveButton').disabled = false;
+        });
+    </script>
+</body>
+</html>

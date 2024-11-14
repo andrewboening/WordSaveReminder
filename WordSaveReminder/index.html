@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <title>Save Reminder Add-in</title>
+
+    <!-- Office JavaScript API -->
+    <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+
+    <script>
+        Office.onReady((info) => {
+            if (info.host === Office.HostType.Word) {
+                initializeSaveTracking();
+                startSaveReminder();
+            }
+        });
+
+        let reminderInterval;
+        let lastSaveTime;
+        const REMINDER_INTERVAL = 600000; // 10 minutes in milliseconds
+
+        function initializeSaveTracking() {
+            // Set initial save time
+            lastSaveTime = new Date();
+
+            // Add event handler for document changes
+            Office.context.document.addHandlerAsync(
+                Office.EventType.DocumentSelectionChanged,
+                checkForChanges
+            );
+        }
+
+        function checkForChanges() {
+            // Get document properties to check if it's dirty (has unsaved changes)
+            Office.context.document.getFilePropertiesAsync(function (result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    if (result.value.url !== "") {  // Document has been saved at least once
+                        trackSaveState();
+                    }
+                }
+            });
+        }
+
+        function trackSaveState() {
+            Office.context.document.getFilePropertiesAsync(function (result) {
+                if (result.status === Office.AsyncResultStatus.Succeeded) {
+                    const currentUrl = result.value.url;
+                    
+                    // If the URL has changed, it means the document was just saved
+                    if (currentUrl !== lastUrl) {
+                        lastSaveTime = new Date();
+                        lastUrl = currentUrl;
+                    }
+                }
+            });
+        }
+
+        function startSaveReminder() {
+            // Clear any existing interval
+            if (reminderInterval) {
+                clearInterval(reminderInterval);
+            }
+
+            // Set up the periodic check
+            reminderInterval = setInterval(checkIfReminderNeeded, REMINDER_INTERVAL);
+        }
+
+        function checkIfReminderNeeded() {
+            const currentTime = new Date();
+            const timeSinceLastSave = currentTime - lastSaveTime;
+
+            // Only show reminder if more than 10 minutes have passed since last save
+            if (timeSinceLastSave >= REMINDER_INTERVAL) {
+                // Check if document has unsaved changes
+                Office.context.document.getFilePropertiesAsync(function (result) {
+                    if (result.status === Office.AsyncResultStatus.Succeeded) {
+                        Office.context.document.getMaxCharactersAsync(function(lengthResult) {
+                            if (lengthResult.status === Office.AsyncResultStatus.Succeeded) {
+                                if (lengthResult.value > 0) {  // Only remind if document has content
+                                    showSaveReminder();
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        function showSaveReminder() {
+            // Show dialog using Office UI
+            Office.context.ui.displayDialogAsync('saveReminder.html', 
+                {height: 30, width: 30, displayInIframe: true},
+                function(result) {
+                    if (result.status === Office.AsyncResultStatus.Failed) {
+                        console.error('Failed to display reminder:', result.error);
+                    }
+                }
+            );
+        }
+
+        // Handle messages from dialog
+        Office.context.ui.addHandlerAsync(
+            Office.EventType.DialogMessageReceived,
+            function (arg) {
+                if (arg.message === 'saved') {
+                    lastSaveTime = new Date();
+                }
+            }
+        );
+    </script>
+</head>
+<body>
+    <div id="content-main">
+        <p>Save Reminder is active. You will be reminded if you haven't saved your work in the last 10 minutes.</p>
+    </div>
+</body>
+</html>
